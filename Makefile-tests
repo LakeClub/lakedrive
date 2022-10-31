@@ -1,0 +1,28 @@
+
+# local minio test credentials
+AWS_ACCESS_KEY_ID = AKIAIOSFODNN7EXAMPLE
+AWS_SECRET_ACCESS_KEY = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+AWS_S3_ENDPOINT = https://minio-dev:8443
+export AWS_ACCESS_KEY_ID
+export AWS_SECRET_ACCESS_KEY
+export AWS_S3_ENDPOINT
+
+RUN_TESTS = test_*.py core utils httplibs localfs s3
+
+_TESTS = $(patsubst %,tests/%,$(RUN_TESTS))
+.PHONY: $(_TESTS)
+$(_TESTS):
+	PYTEST_LOG_LEVEL=CRITICAL \
+	coverage run --concurrency=multiprocessing -m pytest \
+		-o cache_dir=.cache \
+		-x -s $(@)
+
+.PHONY: tests
+tests: $(_TESTS)
+	@coverage combine -q
+
+.PHONY: coverage
+coverage:
+	@[ ! -f .cache/.coverage ] \
+		&& echo "No .coverage file found, run tests first" && exit 1 || exit 0
+	coverage report -m --include=src/*
