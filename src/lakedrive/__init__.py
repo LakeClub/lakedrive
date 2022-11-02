@@ -1,4 +1,3 @@
-__version__ = "0.80.0"
 import logging
 
 from .api import (
@@ -18,8 +17,8 @@ from .api import (
     Sync,
     Delete,
 )
+from .about import __version__
 from .cli import main as cli_main
-
 
 __all__ = [
     "head",

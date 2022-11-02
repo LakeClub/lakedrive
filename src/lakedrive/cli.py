@@ -9,6 +9,8 @@ from lakedrive import get, put, sync_paths, delete
 from lakedrive.api import FileBatch, Response
 from lakedrive.utils.formatters import outputs_file_object
 
+from .about import __version__, __version_released__
+
 logger = logging.getLogger(__name__)
 
 
@@ -70,6 +72,9 @@ def main(cli_args: List[str]) -> int:
     configure_logger(name=module_name, debug=(os.environ.get("DEBUG", "") != ""))
 
     parser = CustomArgParser(prog=module_name)
+
+    parser.add_argument("-V", "--version", action="store_true", help="show version and exit")
+
     subparsers = parser.add_subparsers(help="<sub-command> help", dest="command")
 
     methods = {}
@@ -133,6 +138,14 @@ def main(cli_args: List[str]) -> int:
     )
 
     args = parser.parse_args(args=cli_args)
+
+    if args.version:
+        sys.stdout.write("\n".join([
+            f"{__package__} { __version__ }",
+            f"released: {__version_released__}",
+            "",
+        ]))
+        return 0
 
     if args.command == "copy":
         source_response = get(args.source, recursive=args.recursive)

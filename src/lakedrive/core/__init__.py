@@ -5,7 +5,7 @@ from typing import List, Dict, Optional
 from ..core.objects import FileObject
 from ..core.handlers import SchemeError
 from ..localfs.handler import LocalFileHandler
-from ..s3.handler import S3Handler
+from ..s3.handler import S3Handler, S3HandlerError
 from ..core.handlers import ObjectStoreHandler
 
 
@@ -16,12 +16,16 @@ async def get_scheme_handler(
     max_write_threads: Optional[int] = None,
 ) -> ObjectStoreHandler:
     if re.match("^s3://", location):
-        return await S3Handler(
-            location,
-            credentials=credentials,
-            max_read_threads=max_read_threads,
-            max_write_threads=max_write_threads,
-        ).__ainit__()
+        try:
+            return await S3Handler(
+                location,
+                credentials=credentials,
+                max_read_threads=max_read_threads,
+                max_write_threads=max_write_threads,
+            ).__ainit__()
+        except S3HandlerError as error:
+            raise SchemeError(error)
+
     elif location and not re.match("^[-a-zA-Z0-9]*://", location):
         return await LocalFileHandler(
             location,

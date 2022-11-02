@@ -220,6 +220,7 @@ class S3Connect(HttpConnectionMeta):
             headers = dict(self.base_headers)
         headers["x-amz-date"] = self.now.strftime("%Y%m%dT%H%M%SZ")
         headers["x-amz-content-sha256"] = payload_hash
+        headers["x-amz-security-token"] = os.environ.get("AWS_SESSION_TOKEN", "")
 
         # Create canonical URI--the part of the URI from domain to query
         # if endpoint includes a path, add this to canonical_uri

@@ -18,11 +18,11 @@ $(_TESTS):
 		-x -s $(@)
 
 .PHONY: tests
-tests: $(_TESTS)
-	@coverage combine -q
+tests: $(_TESTS) coverage
 
 .PHONY: coverage
 coverage:
+	@coverage combine -q
 	@[ ! -f .cache/.coverage ] \
 		&& echo "No .coverage file found, run tests first" && exit 1 || exit 0
 	coverage report -m --include=src/*

@@ -4,7 +4,7 @@ import asyncio
 
 from typing import List, Dict, Any
 
-from lakedrive.core import get_scheme_handler
+from lakedrive.core import get_scheme_handler, SchemeError
 from lakedrive.core.objects import HashTuple
 from lakedrive.httplibs.objects import HttpResponse, HttpResponseError
 
@@ -177,7 +177,7 @@ def test_bucket_delete() -> None:
     assert success is False
 
 
-def test_parse_bucket_list_response() -> None:
+def test_bucket_parse_list_response() -> None:
     xml_content = generate_xml()
 
     http_response = HttpResponse(
@@ -193,7 +193,7 @@ def test_parse_bucket_list_response() -> None:
     )
 
 
-def test_parse_bucket_list_response_403() -> None:
+def test_bucket_parse_list_response_403() -> None:
     http_response = HttpResponse(
         status_code="403",
         body=b"",
@@ -208,7 +208,7 @@ def test_parse_bucket_list_response_403() -> None:
         )
 
 
-def test_inaccessible_bucket() -> None:
+def test_bucket_inaccessible() -> None:
     # empty access key to trigger PermissionError
     invalid_credentials = {
         "access_id": "dummy",
@@ -222,7 +222,15 @@ def test_inaccessible_bucket() -> None:
         asyncio.run(s3_handler.create_storage_target())
 
 
-def test_delete_nonexistent_bucket() -> None:
+def test_bucket_empty_name() -> None:
+    with pytest.raises(SchemeError) as error:
+        asyncio.run(get_scheme_handler("s3://"))
+    assert (
+        str(error.value) == "Bucketname empty"
+    )
+
+
+def test_bucket_delete_nonexistent() -> None:
     # create a bucket that is very unlikely to exist, 63 == max. length S3 bucket
     s3_random_bucket = f's3://{get_random_string(63, special_chars_limited="-_")}'
     s3_handler = asyncio.run(get_scheme_handler(s3_random_bucket))

@@ -69,6 +69,9 @@ class S3Handler(ObjectStoreHandler):
             bucket_name = tmp
             self.bucket_path = ""
 
+        if not bucket_name:
+            raise S3HandlerError("Bucketname empty")
+
         self.bucket = S3Bucket(bucket_name)
 
     async def __ainit__(self) -> S3Handler:
@@ -112,6 +115,7 @@ class S3Handler(ObjectStoreHandler):
                 return self.bucket
         except AttributeError:
             pass
+
         await self.bucket.validate(
             self._get_aws_credentials(),
             raise_not_found=raise_not_found,
