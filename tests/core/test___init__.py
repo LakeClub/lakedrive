@@ -6,16 +6,15 @@ from lakedrive.s3.handler import S3Handler
 from tests.helpers.async_parsers import pytest_asyncio
 
 
-@pytest_asyncio
-async def test_get_scheme_handler() -> None:
-    localfs_handler = await get_scheme_handler("/testdir")
+def test_get_scheme_handler() -> None:
+    localfs_handler = get_scheme_handler("/testdir")
     assert isinstance(localfs_handler, LocalFileHandler)
 
-    s3_handler = await get_scheme_handler("s3://dummybucket/abc")
+    s3_handler = get_scheme_handler("s3://dummybucket/abc")
     assert isinstance(s3_handler, S3Handler)
 
     try:
-        await get_scheme_handler("http://dummy_handler")
+        get_scheme_handler("http://dummy_handler")
     except SchemeError as error:
         assert isinstance(error.__str__(), str)
 

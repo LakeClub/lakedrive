@@ -6,6 +6,7 @@ from lakedrive.core.objects import FileObject, ByteStream
 from lakedrive.httplibs.request import HttpRequest
 from lakedrive.httplibs.objects import HttpResponse, HttpResponseError
 from lakedrive.s3.handler import S3Handler
+from lakedrive.s3.objects import S3Bucket
 from lakedrive.s3.files import (
     parse_head_response_headers,
     file_exists,
@@ -38,6 +39,8 @@ class TestS3Files:
     @pytest.fixture(autouse=True)  # type: ignore[misc]
     def setup(self, object_store_s3_files: S3Handler) -> None:
         self.object_store = object_store_s3_files
+        assert isinstance(self.object_store.bucket, S3Bucket)
+        self.object_store_bucket = self.object_store.bucket
         self.original_credentials = self.object_store.bucket.s3_credentials
         self.fake_credentials = {
             "access_id": "FAKE_ACCESS_ID",
@@ -47,21 +50,21 @@ class TestS3Files:
 
     def set_credentials(self, fake: bool = False) -> None:
         if fake is True:
-            self.object_store.bucket.s3_credentials = self.fake_credentials
+            self.object_store_bucket.s3_credentials = self.fake_credentials
         else:
-            self.object_store.bucket.s3_credentials = self.original_credentials
+            self.object_store_bucket.s3_credentials = self.original_credentials
 
     @pytest_asyncio
     async def test_put_file(self) -> None:
         filename, filedata = self.testfiles[0]
-        await put_file(self.object_store.bucket, filename, filedata)
+        await put_file(self.object_store_bucket, filename, filedata)
 
     @pytest_asyncio
     async def test_get_file(self) -> None:
         filename, filedata_written = self.testfiles[0]
 
         file_object_in = FileObject(name=filename, size=len(filedata_written))
-        file_object_out = await get_file(self.object_store.bucket, file_object_in)
+        file_object_out = await get_file(self.object_store_bucket, file_object_in)
         assert isinstance(file_object_out, FileObject)
 
         assert file_object_out.source is not None
@@ -81,10 +84,10 @@ class TestS3Files:
     async def test_put_file_nopermission(self) -> None:
         self.set_credentials(fake=True)
         filename, filedata = self.testfiles[0]
-        s3_path = f"s3://{self.object_store.bucket.name}/{filename}"
+        s3_path = f"s3://{self.object_store_bucket.name}/{filename}"
 
         with pytest.raises(HttpResponseError) as error:
-            await put_file(self.object_store.bucket, filename, filedata)
+            await put_file(self.object_store_bucket, filename, filedata)
         assert str(error.value) == f"cant write to '{s3_path}' (403)"
 
         self.set_credentials(fake=False)
@@ -94,7 +97,7 @@ class TestS3Files:
         self.set_credentials(fake=True)
         filename, _ = self.testfiles[0]
         file_object = await get_file(
-            self.object_store.bucket, FileObject(name=filename)
+            self.object_store_bucket, FileObject(name=filename)
         )
         with pytest.raises(PermissionError) as error:
             response = file_object.read()
@@ -108,10 +111,10 @@ class TestS3Files:
         self.set_credentials(fake=True)
         filename, _ = self.testfiles[0]
         with pytest.raises(HttpResponseError) as error:
-            await file_exists(self.object_store.bucket, filename)
+            await file_exists(self.object_store_bucket, filename)
         assert (
             str(error.value)
-            == f"cant access 's3://{self.object_store.bucket.name}/{filename}' (403)"
+            == f"cant access 's3://{self.object_store_bucket.name}/{filename}' (403)"
         )
         self.set_credentials(fake=False)
 

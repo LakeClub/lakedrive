@@ -32,7 +32,7 @@ async def async_iterator(data: bytes) -> AsyncIterator[bytes]:
     yield data
 
 
-async def parse_target(target: str) -> Tuple[ObjectStoreHandler, str]:
+def parse_target(target: str) -> Tuple[ObjectStoreHandler, str]:
 
     storage_target = ""
 
@@ -76,7 +76,7 @@ async def parse_target(target: str) -> Tuple[ObjectStoreHandler, str]:
 
     file_path = re.sub(storage_target, "", target).lstrip("/")
 
-    object_store = await get_scheme_handler(storage_target)
+    object_store = get_scheme_handler(storage_target)
     return object_store, file_path
 
 
@@ -108,6 +108,7 @@ async def validate_storage_target(
 ) -> Optional[Response]:
     try:
         await object_store.storage_target_exists(raise_on_not_found=True)
+
     except FileNotFoundError as error:
         return Response(
             method, status_code=404, error_message=f"'{str(error)}' not exists"
@@ -272,7 +273,7 @@ class Request:
 
     async def __aenter__(self) -> Request:
         try:
-            self.object_store, self.file_path = await parse_target(self.target)
+            self.object_store, self.file_path = parse_target(self.target)
             await self._parse_request()
         except PermissionError as error:
             self.Response = Response(
@@ -664,8 +665,8 @@ class Sync:
             if self.destination[-1] != "/":
                 self.destination += "/"
 
-            self.source_object_store, _ = await parse_target(self.source)
-            self.destination_object_store, _ = await parse_target(self.destination)
+            self.source_object_store, _ = parse_target(self.source)
+            self.destination_object_store, _ = parse_target(self.destination)
 
             await self._parse_request()
             assert isinstance(self.Response, Response)

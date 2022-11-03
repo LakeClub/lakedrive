@@ -21,8 +21,9 @@ from lakedrive.api import (
 )
 from lakedrive.api import FileBatch
 from lakedrive.core.objects import HashTuple, ByteStream, FileObject
-from lakedrive.utils.event_loop import run_on_event_loop
 from lakedrive.core.handlers import ObjectStoreHandler, SchemeError
+from lakedrive.localfs.handler import LocalFileHandler
+from lakedrive.utils.event_loop import run_on_event_loop
 
 from .localfs.helpers import cleanup_tempdir_localfs, create_files_localfs
 from .helpers.mock_classes import MockApiRequestPermissionError
@@ -95,8 +96,7 @@ def tempfile_api(tempdir_api: str) -> Tuple[str, str, int]:
     return file_path, file_object.hash.value, file_object.size
 
 
-@pytest_asyncio
-async def test_parse_target() -> None:
+def test_parse_target() -> None:
     # list of good examples that need to pass succesfully
     # (original target, storage_target, file_path )
     targets_map_validate = [
@@ -112,7 +112,7 @@ async def test_parse_target() -> None:
     for test_case in targets_map_validate:
         target, storage_target_x, file_path_x = test_case
 
-        object_store, file_path_y = await parse_target(target)
+        object_store, file_path_y = parse_target(target)
         assert isinstance(object_store, ObjectStoreHandler)
         assert isinstance(file_path_y, str)
 
@@ -125,7 +125,7 @@ async def test_parse_target() -> None:
     targets_map_invalid = ["", "s1://test-bucket"]
     for target in targets_map_invalid:
         with pytest.raises(SchemeError) as error:
-            await parse_target(target)
+            parse_target(target)
         assert str(error.value) == "unsupported scheme"
 
 
@@ -581,7 +581,7 @@ class TestPut:
         assert isinstance(request, Put)
         # temporarily restore to get passed parse_target
         os.chmod(file_path_directory, 0o777)
-        request.object_store, request.file_path = await parse_target(file_path)
+        request.object_store, request.file_path = parse_target(file_path)
 
         os.chmod(file_path_directory, 0o000)
         await request._put_single_object(FileObject("test_lorem.txt"))
@@ -711,7 +711,7 @@ add '-r/--recursive' to run recursively"
         target = f"{tempdir_api}/dummy"
         request = Head(target)
         assert isinstance(request, Head)
-        request.object_store, request.file_path = await parse_target(target)
+        request.object_store, request.file_path = parse_target(target)
 
         # force assign to mock function to test specific behavior
         request.object_store.head_file = (  # type: ignore[assignment]
@@ -733,7 +733,7 @@ add '-r/--recursive' to run recursively"
 
         request = Head(target, recursive=True)
         assert isinstance(request, Head)
-        request.object_store, request.file_path = await parse_target(target)
+        request.object_store, request.file_path = parse_target(target)
 
         # force assign to mock function to test specific behavior
         request.object_store.list_contents = (  # type: ignore[assignment]
@@ -914,7 +914,7 @@ add '-r/--recursive' to run recursively"
         target = f"{tempdir_api}/dummy"
         request = Get(target)
         assert isinstance(request, Get)
-        request.object_store, request.file_path = await parse_target(target)
+        request.object_store, request.file_path = parse_target(target)
 
         # force assign to mock function to test specific behavior
         request.object_store.read_file = (  # type: ignore[assignment]
@@ -936,7 +936,7 @@ add '-r/--recursive' to run recursively"
 
         request = Get(target, recursive=True)
         assert isinstance(request, Get)
-        request.object_store, request.file_path = await parse_target(target)
+        request.object_store, request.file_path = parse_target(target)
 
         # force assign to mock function to test specific behavior
         request.object_store.list_contents = (  # type: ignore[assignment]
@@ -1029,10 +1029,11 @@ def delete_from_sub_path(original_file_path: str) -> Delete:
     # this can also be done by setting specific file-attributes (e.g. using
     # cflags/ chattr), but this is very OS dependant which is difficult to test
     request = Delete(original_file_path)
-    _object_store, _file_path = run_on_event_loop(parse_target, original_file_path)
+    _object_store, _file_path = parse_target(original_file_path)
     _object_store.storage_target, remainder = _object_store.storage_target.rsplit(
         "/", 1
     )
+    assert isinstance(_object_store, LocalFileHandler)
     _object_store.storage_path = f"{_object_store.storage_target}/"
     request.object_store = _object_store
     request.file_path = f"{remainder}/{_file_path}"
@@ -1222,7 +1223,7 @@ class TestDelete:
 
         request = Delete(target)
         assert isinstance(request, Delete)
-        request.object_store, request.file_path = await parse_target(target)
+        request.object_store, request.file_path = parse_target(target)
 
         # force assign to mock function to test specific behavior
         request.object_store.delete_file = (  # type: ignore[assignment]

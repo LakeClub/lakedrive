@@ -17,7 +17,7 @@ from .api import (
     Sync,
     Delete,
 )
-from .about import __version__
+from .about import __version__  # noqa: F401
 from .cli import main as cli_main
 
 __all__ = [

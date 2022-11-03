@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 from lakedrive.s3.objects import S3Bucket
 from lakedrive.s3.handler import S3Handler, S3HandlerError
+from lakedrive.core import get_scheme_handler
 from lakedrive.core.handlers import ObjectStoreHandler
 from lakedrive.core.objects import FileObject
 from lakedrive.httplibs.objects import HttpResponseError
@@ -64,6 +65,7 @@ class TestS3HandlerDummy(_TestObjectStoreHandler):
         object_store = S3Handler(f"{self.bucket_name}/subpath")
         asyncio.run(object_store._set_bucket())
         asyncio.run(object_store.create_storage_target())
+        assert isinstance(object_store.bucket, S3Bucket)
 
         # configure false bucket credentials
         original_credentials = object_store.bucket.s3_credentials
@@ -81,6 +83,7 @@ class TestS3HandlerDummy(_TestObjectStoreHandler):
         object_store = S3Handler(f"{self.bucket_name}/filepath")
         asyncio.run(object_store._set_bucket())
         asyncio.run(object_store.create_storage_target())
+        assert isinstance(object_store.bucket, S3Bucket)
 
         # configure false bucket credentials
         original_credentials = object_store.bucket.s3_credentials
@@ -170,7 +173,9 @@ class TestBatchS3FileHandler(_TestObjectStoreHandlerMultiFile):
 
         # ensure storage target exists
         asyncio.run(self.target.create_storage_target())
-        assert asyncio.run(self.target.storage_target_exists()) is True
+        exists = asyncio.run(self.target.storage_target_exists())
+        assert isinstance(exists, bool)
+        assert exists is True
 
         # temporarily inject fake credentials to trigger a non 204 http-response
         fake_credentials = {
@@ -255,6 +260,60 @@ class TestS3Custom:
         )
         assert isinstance(file_objects, list)
         assert len(file_objects) == file_count
+
+
+class TestS3NoBucket:
+    @pytest.fixture(autouse=True)  # type: ignore[misc]
+    def setup(
+        self,
+    ) -> None:
+        self.s3_handler = get_scheme_handler("s3://")
+
+    def test_bucket_no_bucket(self) -> None:
+        assert isinstance(self.s3_handler, S3Handler)
+        assert self.s3_handler.bucket is None
+
+    @pytest_asyncio
+    async def test_handler_set_bucket(self) -> None:
+        assert isinstance(self.s3_handler, S3Handler)
+        assert await self.s3_handler._set_bucket() is None
+
+    @pytest_asyncio
+    async def test_handler_create_storage_target(self) -> None:
+        target = await self.s3_handler.create_storage_target()
+        assert isinstance(target, str)
+        assert target == "s3://"
+
+    @pytest_asyncio
+    async def test_handler_write_file(self) -> None:
+        with pytest.raises(PermissionError) as error:
+            await self.s3_handler.write_file(FileObject(""))
+        assert str(error.value) == "No bucket set"
+
+    @pytest_asyncio
+    async def test_handler_head_file(self) -> None:
+        with pytest.raises(PermissionError) as error:
+            await self.s3_handler.head_file("dummy")
+        assert str(error.value) == "No bucket set"
+
+    @pytest_asyncio
+    async def test_handler_read_file(self) -> None:
+        with pytest.raises(PermissionError) as error:
+            await self.s3_handler.read_file(FileObject(""))
+        assert str(error.value) == "No bucket set"
+
+    @pytest_asyncio
+    async def test_handler_read_batch(self) -> None:
+        with pytest.raises(PermissionError) as error:
+            async for _ in self.s3_handler.read_batch([FileObject("")]):
+                pass
+        assert str(error.value) == "No bucket set"
+
+    @pytest_asyncio
+    async def test_handler_write_batch(self) -> None:
+        with pytest.raises(PermissionError) as error:
+            await self.s3_handler.write_batch([FileObject("")])
+        assert str(error.value) == "No bucket set"
 
 
 def test_no_s3_credentials() -> None:

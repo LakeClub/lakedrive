@@ -49,12 +49,9 @@ class LocalFileHandler(ObjectStoreHandler):
         # ensure file_path ends with "/" -- rstrip first to prevent double "/"
         self.storage_path = f'{self.storage_target.rstrip("/")}/'
 
-    async def __ainit__(self) -> LocalFileHandler:
-        return self
-
     async def storage_target_exists(
         self, raise_on_exist_nodir: bool = True, raise_on_not_found: bool = False
-    ) -> bool:
+    ) -> Optional[bool]:
         """Check if storage target exists, and can be used as such"""
         try:
             fp = os.lstat(self.storage_target)

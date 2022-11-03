@@ -32,7 +32,7 @@ class TestCLIMain:
     def setup(
         self,
     ) -> None:
-        self.main = partial(argparse_validate_args, cli_main) 
+        self.main = partial(argparse_validate_args, cli_main)
 
     def test_cli_main(self, capsys: pytest.CaptureFixture) -> None:
         """check expected exit-/return codes for various arguments"""

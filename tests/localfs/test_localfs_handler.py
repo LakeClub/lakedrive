@@ -123,7 +123,7 @@ class TestInvalidStorageTarget:
             stream.write("")
 
         with pytest.raises(FileExistsError) as error:
-            asyncio.run(self.object_store.storage_target_exists())
+            exists = asyncio.run(self.object_store.storage_target_exists())
         assert str(error.value) == f"'{self.local_path}' exists, but not a directory"
         exists = asyncio.run(
             self.object_store.storage_target_exists(raise_on_exist_nodir=False)
@@ -216,7 +216,7 @@ class TestLocalFsErrorsMisc:
         filepath = f"{self.local_tempdir}/test_validate_storage_target_file_exists"
         with open(filepath, "w") as stream:
             stream.write(".")
-        response = await validate_storage_target("", await get_scheme_handler(filepath))
+        response = await validate_storage_target("", get_scheme_handler(filepath))
         assert isinstance(response, Response)
         assert response.status_code == 400
         assert response.error_message == f"'{filepath}' exists, but not a directory"

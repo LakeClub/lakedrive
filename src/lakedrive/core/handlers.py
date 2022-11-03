@@ -58,7 +58,7 @@ class ObjectStoreHandler:
 
     async def storage_target_exists(
         self, raise_on_exist_nodir: bool = True, raise_on_not_found: bool = False
-    ) -> bool:
+    ) -> Optional[bool]:
         return False
 
     async def list_contents(

@@ -15,16 +15,16 @@ def create_object_store_s3(
     if not location.startswith("s3://"):
         location = f"s3://{location}"
 
-    object_store = asyncio.run(
-        get_scheme_handler(
-            location,
-            max_read_threads=max_read_threads,
-            max_write_threads=max_write_threads,
-        )
+    object_store = get_scheme_handler(
+        location,
+        max_read_threads=max_read_threads,
+        max_write_threads=max_write_threads,
     )
     assert isinstance(object_store, ObjectStoreHandler)
     asyncio.run(object_store.create_storage_target())
-    assert asyncio.run(object_store.storage_target_exists()) is True
+    exists = asyncio.run(object_store.storage_target_exists())
+    assert isinstance(exists, bool)
+    assert exists is True
     return object_store
 
 

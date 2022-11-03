@@ -73,7 +73,9 @@ def main(cli_args: List[str]) -> int:
 
     parser = CustomArgParser(prog=module_name)
 
-    parser.add_argument("-V", "--version", action="store_true", help="show version and exit")
+    parser.add_argument(
+        "-V", "--version", action="store_true", help="show version and exit"
+    )
 
     subparsers = parser.add_subparsers(help="<sub-command> help", dest="command")
 
@@ -140,11 +142,15 @@ def main(cli_args: List[str]) -> int:
     args = parser.parse_args(args=cli_args)
 
     if args.version:
-        sys.stdout.write("\n".join([
-            f"{__package__} { __version__ }",
-            f"released: {__version_released__}",
-            "",
-        ]))
+        sys.stdout.write(
+            "\n".join(
+                [
+                    f"{__package__} { __version__ }",
+                    f"released: {__version_released__}",
+                    "",
+                ]
+            )
+        )
         return 0
 
     if args.command == "copy":

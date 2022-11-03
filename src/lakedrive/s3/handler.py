@@ -70,13 +70,10 @@ class S3Handler(ObjectStoreHandler):
             self.bucket_path = ""
 
         if not bucket_name:
-            raise S3HandlerError("Bucketname empty")
-
-        self.bucket = S3Bucket(bucket_name)
-
-    async def __ainit__(self) -> S3Handler:
-        await self._set_bucket()
-        return self
+            # raise S3HandlerError("Bucketname empty")
+            self.bucket = None
+        else:
+            self.bucket = S3Bucket(bucket_name)
 
     def _get_aws_credentials(self) -> Dict[str, str]:
         if not self.aws_credentials:
@@ -92,9 +89,9 @@ class S3Handler(ObjectStoreHandler):
 
     async def _get_bucket(
         self, raise_not_found: bool = True, create_if_not_exists: bool = False
-    ) -> S3Bucket:
+    ) -> Optional[S3Bucket]:
         try:
-            if self.bucket.exists is False:
+            if self.bucket and self.bucket.exists is False:
                 if create_if_not_exists is True:
                     await self.create_storage_target()
                     return self.bucket
@@ -109,7 +106,9 @@ class S3Handler(ObjectStoreHandler):
 
     async def _set_bucket(
         self, raise_not_found: bool = False, raise_no_permission: bool = False
-    ) -> S3Bucket:
+    ) -> Optional[S3Bucket]:
+        if not self.bucket:
+            return None
         try:
             if self.bucket.exists is True:
                 return self.bucket
@@ -126,8 +125,16 @@ class S3Handler(ObjectStoreHandler):
 
     async def storage_target_exists(
         self, raise_on_exist_nodir: bool = True, raise_on_not_found: bool = False
-    ) -> bool:
-        """Check if storage target exists, and can be used as such"""
+    ) -> Optional[bool]:
+        """Check if storage target exists, and can be used as such
+        possible return values:
+            True: target exists
+            False: target does not exist
+            None: target not configured
+        """
+        # if no bucket is attached, cant check so return None
+        if not self.bucket:
+            return None
         try:
             await self._set_bucket(raise_no_permission=True, raise_not_found=True)
             # bucket exists
@@ -155,6 +162,8 @@ class S3Handler(ObjectStoreHandler):
     ) -> str:
         """Ensure storage target exists (create if needed), and is a directory with
         sufficient (read,write and execute) permissions for current user."""
+        if not self.bucket:
+            return self.storage_target
         try:
             if self.bucket_path:
                 # over-ride raise_exist for (root)bucket itself
@@ -202,22 +211,30 @@ class S3Handler(ObjectStoreHandler):
         self,
         file_object: FileObject,
     ) -> None:
-        await put_file_stream(
-            await self._get_bucket(create_if_not_exists=True),
-            file_object,
-            prefix=self.bucket_path,
-        )
+        bucket = await self._get_bucket(create_if_not_exists=True)
+        if bucket:
+            await put_file_stream(
+                bucket,
+                file_object,
+                prefix=self.bucket_path,
+            )
+        else:
+            raise PermissionError("No bucket set")
 
     async def head_file(
         self,
         filename: str,
         checksum: bool = True,
     ) -> None:
-        filepath = f"{self.bucket_path}{filename}"
 
+        bucket = await self._get_bucket()
+        if not bucket:
+            raise PermissionError("No bucket set")
+
+        filepath = f"{self.bucket_path}{filename}"
         try:
             headers = await s3_head_file(
-                await self._get_bucket(),
+                bucket,
                 filepath,
             )
             file_object = FileObject(
@@ -243,10 +260,15 @@ class S3Handler(ObjectStoreHandler):
         validate: bool = False,
         chunk_size: int = 1024**2 * 16,
     ) -> FileObject:
+
+        bucket = await self._get_bucket()
+        if not bucket:
+            raise PermissionError("No bucket set")
+
         if (
             validate is True
             and await file_exists(
-                await self._get_bucket(),
+                bucket,
                 f"{self.bucket_path}{file_object.name}",
             )
             is False
@@ -255,7 +277,7 @@ class S3Handler(ObjectStoreHandler):
         else:
             pass
         file_object = await get_file(
-            await self._get_bucket(),
+            bucket,
             file_object,
             prefix=self.bucket_path,
             chunk_size=chunk_size,
@@ -283,7 +305,7 @@ class S3Handler(ObjectStoreHandler):
         raise_on_permission_error: bool = False,
     ) -> List[FileObject]:
         bucket = await self._get_bucket(raise_not_found=False)
-        if bucket.exists is False:
+        if not bucket or bucket.exists is False:
             return []
 
         self.object_list = await bucket_list(
@@ -321,6 +343,8 @@ class S3Handler(ObjectStoreHandler):
         threads_per_worker: int = 0,
     ) -> AsyncIterator[List[FileObject]]:
         bucket = await self._get_bucket()
+        if not bucket:
+            raise PermissionError("No bucket set")
 
         self.object_list = []
         async for batch in get_file_batched(
@@ -337,6 +361,10 @@ class S3Handler(ObjectStoreHandler):
         max_read_threads: Optional[int] = None,
     ) -> List[FileObject]:
         """Write batch of FileObjects, return list of remaining FileObjects"""
+        bucket = await self._get_bucket(create_if_not_exists=True)
+        if not bucket:
+            raise PermissionError("No bucket set")
+
         # throughput is based on weakest link
         max_read_threads = max_read_threads or self.max_read_threads
         threads = min(max_read_threads, self.max_write_threads)
@@ -347,7 +375,7 @@ class S3Handler(ObjectStoreHandler):
             file_objects_list_aiter = chunklist_aiter(file_objects, no_chunks)
 
         remaining_file_objects = await put_file_batched(
-            await self._get_bucket(create_if_not_exists=True),
+            bucket,
             file_objects_list_aiter,
             prefix=self.bucket_path,
             tcp_connections=threads,
@@ -363,7 +391,7 @@ class S3Handler(ObjectStoreHandler):
             file_objects = self.object_list
 
         bucket = await self._get_bucket(raise_not_found=False)
-        if bucket.exists is False:
+        if not bucket or bucket.exists is False:
             # if bucket does not exist there are no remaining files
             return []
 
@@ -394,7 +422,7 @@ class S3Handler(ObjectStoreHandler):
         else:
             # delete bucket
             bucket = await self._get_bucket(raise_not_found=False)
-            if bucket.exists is True:
+            if bucket and bucket.exists is True:
                 success = await bucket_delete(
                     bucket,
                 )
