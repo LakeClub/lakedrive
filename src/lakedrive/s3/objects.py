@@ -20,9 +20,9 @@ from ..httplibs.objects import (
 from ..httplibs.request import HttpRequest
 from ..httplibs.helpers import http_connection_args
 from ..httplibs.request import HTTP_BASE_HEADERS
+from .config import AWS_DEFAULT_REGION
 
 logger = logging.getLogger(__name__)
-
 
 CRLF = "\r\n"
 
@@ -64,7 +64,9 @@ class S3Bucket(ConnectConfiguration):
         bucket_name = self.name
 
         self.region = (
-            region or os.environ.get("AWS_DEFAULT_REGION", "eu-west-1") or self.region
+            region
+            or os.environ.get("AWS_DEFAULT_REGION", AWS_DEFAULT_REGION)
+            or self.region
         )
 
         endpoint_url = endpoint_url or os.environ.get("AWS_S3_ENDPOINT", "")
@@ -157,13 +159,11 @@ class S3Bucket(ConnectConfiguration):
 class S3Connect(HttpConnectionMeta):
     def __init__(
         self,
-        bucket: S3Bucket,
+        connection_args: List[Dict[str, Any]],
+        credentials: Dict[str, str],
+        endpoint_url: str,
+        region: str,
     ):
-        connection_args = bucket.connection_args
-        credentials = bucket.s3_credentials
-        endpoint_url = bucket.endpoint_url
-        region = bucket.region
-
         self.connection_args = connection_args
         self.credentials = credentials
         self.endpoint_url = endpoint_url
@@ -372,16 +372,45 @@ class S3Connect(HttpConnectionMeta):
 class HttpRequestS3(HttpRequest):
     def __init__(
         self,
-        bucket: S3Bucket,
+        connection_args: List[Dict[str, Any]],
+        s3_credentials: Dict[str, str],
+        endpoint_url: str,
+        region: str,
         connections: int = 2,
     ) -> None:
-        self.bucket = bucket
-        config = bucket
-        super().__init__(config, HttpConnectionMeta, connections=connections)
+
+        self.connection_args = connection_args
+        self.credentials = s3_credentials
+        self.endpoint_url = endpoint_url
+        self.region = region
+
+        super().__init__(
+            self.connection_args, HttpConnectionMeta, connections=connections
+        )
 
     async def __aenter__(self) -> HttpRequestS3:
         self._event_loop = asyncio.get_running_loop()
         return self
 
     def new_request(self) -> HttpConnectionMeta:
-        return S3Connect(self.bucket)
+        return S3Connect(
+            self.connection_args,
+            self.credentials,
+            self.endpoint_url,
+            self.region,
+        )
+
+
+class HttpRequestS3Bucket(HttpRequestS3):
+    def __init__(
+        self,
+        bucket: S3Bucket,
+        connections: int = 2,
+    ) -> None:
+        super().__init__(
+            bucket.connection_args,
+            bucket.s3_credentials,
+            bucket.endpoint_url,
+            bucket.region,
+            connections=connections,
+        )

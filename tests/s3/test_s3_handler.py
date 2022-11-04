@@ -315,6 +315,15 @@ class TestS3NoBucket:
             await self.s3_handler.write_batch([FileObject("")])
         assert str(error.value) == "No bucket set"
 
+    @pytest_asyncio
+    async def test_handler_list_contents(self) -> None:
+        results = await self.s3_handler.list_contents()
+        expected_buckets = ["source", "target", "test-files"]
+        assert len(results) == len(expected_buckets)
+        assert sorted([f"{name}/" for name in expected_buckets]) == sorted(
+            [item.name for item in results]
+        )
+
 
 def test_no_s3_credentials() -> None:
     env_keys = ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"]

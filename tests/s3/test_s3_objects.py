@@ -46,7 +46,13 @@ class TestS3Connect:
 
         assert isinstance(bucket.endpoint_url, str)
         assert bucket.endpoint_url == f"https://{bucket_aws_host}"
-        http_connection = S3Connect(bucket)
+
+        http_connection = S3Connect(
+            bucket.connection_args,
+            bucket.s3_credentials,
+            bucket.endpoint_url,
+            bucket.region,
+        )
         headers = http_connection.generate_headers("")
         assert isinstance(headers, dict)
         assert isinstance(headers["x-amz-date"], str)
@@ -57,10 +63,14 @@ class TestS3Connect:
     def test_generate_headers_streaming(self) -> None:
         """Testing the case where content_length < chunk_size,
         as these code-blocks will be skipped by the object store tests"""
+        bucket = S3Bucket("dummy").configure(
+            credentials=self.fake_credentials, region="earth"
+        )
         http_connection = S3Connect(
-            S3Bucket("dummy").configure(
-                credentials=self.fake_credentials, region="earth"
-            )
+            bucket.connection_args,
+            bucket.s3_credentials,
+            bucket.endpoint_url,
+            bucket.region,
         )
         content_length = 1024
         chunk_size = 256 * 1024

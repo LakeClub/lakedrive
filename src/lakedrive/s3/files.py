@@ -8,8 +8,8 @@ from ..core.objects import ByteStream, FileObject
 from ..utils.helpers import split_in_chunks
 from ..httplibs.objects import HttpResponse, HttpResponseError
 
-from .bucket import bucket_list
-from .objects import S3Bucket, HttpRequestS3
+from .bucket import bucket_objects
+from .objects import S3Bucket, HttpRequestS3, HttpRequestS3Bucket
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ async def s3_head_file(
     bucket: S3Bucket,
     file_path: str,
 ) -> Dict[str, str]:
-    async with HttpRequestS3(bucket, connections=1) as client:
+    async with HttpRequestS3Bucket(bucket, connections=1) as client:
         response = await client.head(resource=file_path)
     return parse_head_response_headers(response)
 
@@ -41,7 +41,9 @@ async def file_exists(
         # cant use head for virtual path
         # if no file_objects exists under path, virtual path wont exist either
         try:
-            file_objects = await bucket_list(bucket, file_path, max_keys_per_prefix=1)
+            file_objects = await bucket_objects(
+                bucket, file_path, max_keys_per_prefix=1
+            )
             if len(file_objects) > 0:
                 return True
             return False
@@ -53,7 +55,7 @@ async def file_exists(
 
     else:
         # object - use head
-        async with HttpRequestS3(bucket, connections=1) as client:
+        async with HttpRequestS3Bucket(bucket, connections=1) as client:
             response = await client.head(resource=file_path)
         try:
             _ = parse_head_response_headers(response)
@@ -154,7 +156,7 @@ async def put_file_batched(
 
     Return list of FileObject (derived from StreamObject) that have failed"""
     file_objects_remaining: List[FileObject] = []
-    client = await HttpRequestS3(
+    client = await HttpRequestS3Bucket(
         bucket,
         connections=tcp_connections,
     ).__aenter__()
@@ -186,7 +188,7 @@ async def delete_file_batched(
 
     file_objects_remaining: List[FileObject] = []
 
-    async with HttpRequestS3(
+    async with HttpRequestS3Bucket(
         bucket,
         connections=no_connections,
     ) as client:
@@ -210,7 +212,7 @@ async def get_file_batched(
     data gets read from the source.
 
     At the end ensure all connections are closed off"""
-    client = await HttpRequestS3(
+    client = await HttpRequestS3Bucket(
         bucket,
         connections=min(threads_per_worker, 50),
     ).__aenter__()
@@ -239,7 +241,7 @@ async def get_file_bytestream(
     prefix: str = "",
     chunk_size: int = 1024**2 * 16,
 ) -> ByteStream:
-    http_client = await HttpRequestS3(
+    http_client = await HttpRequestS3Bucket(
         bucket,
         connections=1,
     ).__aenter__()
@@ -281,7 +283,7 @@ async def put_file(
     file_path: str,
     body: bytes = b"",
 ) -> None:
-    async with HttpRequestS3(bucket, connections=1) as client:
+    async with HttpRequestS3Bucket(bucket, connections=1) as client:
         response = await client.put(
             file_path,
             body=body,
@@ -301,7 +303,7 @@ async def put_file_stream(
     prefix: str = "",
 ) -> List[FileObject]:
     """Upload a single file (FileObject) to a S3 bucket"""
-    async with HttpRequestS3(
+    async with HttpRequestS3Bucket(
         bucket,
         connections=1,
     ) as client:

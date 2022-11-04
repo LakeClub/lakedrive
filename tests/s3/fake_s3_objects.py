@@ -8,7 +8,7 @@ from lakedrive.httplibs.objects import HttpResponse
 from ..helpers.http_connection import ConnectConfiguration, FakeHttpConnect
 
 
-class FakeHttpRequestS3:
+class FakeHttpRequestS3Bucket:
     """"""
 
     def __init__(
@@ -21,7 +21,7 @@ class FakeHttpRequestS3:
     def new_request(self) -> FakeHttpConnect:
         return FakeHttpConnect(self.config)
 
-    async def __aenter__(self) -> FakeHttpRequestS3:
+    async def __aenter__(self) -> FakeHttpRequestS3Bucket:
         return self
 
     async def __aexit__(self, *args: Any) -> None:

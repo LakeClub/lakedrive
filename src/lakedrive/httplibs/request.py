@@ -93,7 +93,7 @@ class HttpRequest:
 
     def __init__(
         self,
-        config: ConnectConfiguration,
+        connection_args: List[Dict[str, Any]],
         http_class: Type[HttpConnectionMeta],
         connections: int = 2,
     ) -> None:
@@ -103,13 +103,11 @@ class HttpRequest:
         self.connections = connections
         self.locks = [asyncio.Lock() for _ in range(connections)]
         self.http_connections = [
-            HttpConnection(config.connection_args, thread_no)
+            HttpConnection(connection_args, thread_no)
             for thread_no in range(connections)
         ]
 
-        self.config = config
         self.http_class = http_class
-        # self._event_loop = None
 
     def new_request(self) -> HttpConnectionMeta:
         """Default, this is typically overridden in inherited class

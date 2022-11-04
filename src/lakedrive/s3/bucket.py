@@ -1,3 +1,4 @@
+import os
 import re
 import logging
 import asyncio
@@ -8,9 +9,10 @@ from typing import List, Dict, Optional, Tuple
 from ..core.objects import FrozenFileObject, FileObject, HashTuple
 from ..utils.helpers import path_filter_overlap
 from ..httplibs.objects import HttpResponse, HttpResponseError
-from ..s3.objects import S3Bucket, HttpRequestS3
-from ..s3.xmlparse import parse_bucket_list_xml
-
+from ..httplibs.helpers import http_connection_args
+from .objects import S3Bucket, HttpRequestS3, HttpRequestS3Bucket
+from .xmlparse import parse_bucket_objects_xml, parse_bucket_buckets_xml
+from .config import AWS_DEFAULT_REGION
 
 LIST_MAX_KEYS = 1000
 
@@ -44,7 +46,7 @@ def verify_md5sum(etag: str) -> Optional[HashTuple]:
 
 
 async def bucket_connect(bucket: S3Bucket) -> HttpResponse:
-    async with HttpRequestS3(bucket, connections=1) as client:
+    async with HttpRequestS3Bucket(bucket, connections=1) as client:
         response = await client.head(resource="")
     return response
 
@@ -77,7 +79,7 @@ async def bucket_create(
 <LocationConstraint>{bucket.region}</LocationConstraint>\
 </CreateBucketConfiguration>'.encode()
 
-    async with HttpRequestS3(bucket, connections=1) as client:
+    async with HttpRequestS3Bucket(bucket, connections=1) as client:
         response = await client.put("", body=body)
         assert response.status_code == "200"
     logger.info(f"S3 bucket created: {bucket.endpoint_url}")
@@ -90,7 +92,7 @@ async def bucket_delete(
 ) -> bool:
     """Delete a S3 bucket"""
     try:
-        async with HttpRequestS3(bucket, connections=1) as client:
+        async with HttpRequestS3Bucket(bucket, connections=1) as client:
             response = await client.delete("")
 
         _log_prefix = f'Bucket delete "{bucket.endpoint_url}"'
@@ -126,7 +128,7 @@ async def parse_bucket_list_response(
     if response.status_code != "200":
         raise HttpResponseError(response)
 
-    parsed_contents = parse_bucket_list_xml(response.body)
+    parsed_contents = parse_bucket_objects_xml(response.body)
     results_meta = parsed_contents[".ListBucketResult"]
     file_contents = parsed_contents.get(".ListBucketResult.Contents", [])
     prefix_contents = parsed_contents.get(".ListBucketResult.CommonPrefixes", [])
@@ -166,7 +168,7 @@ async def parse_bucket_list_response(
     return results_meta, frozen_file_objects
 
 
-async def bucket_list_loop(
+async def bucket_objects_loop(
     client: HttpRequestS3,
     parameter_str: str,
     thread_id: int,
@@ -215,7 +217,7 @@ async def bucket_list_loop(
     return file_objects
 
 
-async def bucket_list(
+async def bucket_objects(
     bucket: S3Bucket,
     bucket_path: str,
     prefixes: List[str] = [],
@@ -248,13 +250,13 @@ async def bucket_list(
     max_keys_per_prefix = max_keys_per_prefix or LIST_MAX_KEYS
     parameter_str += f"&max-keys={str(max_keys_per_prefix)}"
 
-    async with HttpRequestS3(
+    async with HttpRequestS3Bucket(
         bucket,
         connections=min(len(prefixes), max_connections),
     ) as client:
         responses = await asyncio.gather(
             *[
-                bucket_list_loop(
+                bucket_objects_loop(
                     client,
                     f"{parameter_str}&prefix={prefix}",
                     thread_id,
@@ -268,3 +270,41 @@ async def bucket_list(
 
     merged: List[FileObject] = [item for sublist in responses for item in sublist]
     return merged
+
+
+async def list_buckets(
+    credentials: Dict[str, str],
+) -> List[FileObject]:
+
+    region = os.environ.get("AWS_DEFAULT_REGION", AWS_DEFAULT_REGION)
+    endpoint_url = os.environ.get(
+        "AWS_S3_ENDPOINT", f"https://s3.{region}.amazonaws.com"
+    )
+
+    async with HttpRequestS3(
+        http_connection_args(endpoint_url),
+        credentials,
+        endpoint_url,
+        region,
+        connections=1,
+    ) as client:
+        response = await client.get()
+
+        if response.status_code != "200":
+            raise HttpResponseError(response)
+
+        parsed_contents = parse_bucket_buckets_xml(response.body)
+        bucket_list = parsed_contents.get(".ListAllMyBucketsResult.Buckets.Bucket", [])
+
+        # additional checks required to guarantuee safe passage
+        assert isinstance(bucket_list, list)
+
+        return [
+            FileObject(
+                name=f'{item["Name"]}/',
+                size=0,
+                mtime=rfc3339_to_epoch(item["CreationDate"]),
+            )
+            for item in bucket_list
+            if isinstance(item, dict)
+        ]

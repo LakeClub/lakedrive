@@ -17,7 +17,7 @@ from lakedrive.s3.bucket import (
     parse_bucket_list_response,
 )
 
-from ..s3.fake_s3_objects import FakeHttpRequestS3
+from ..s3.fake_s3_objects import FakeHttpRequestS3Bucket
 from ..helpers.generate_s3_list import generate_xml
 from ..helpers.misc import get_random_string
 from ..helpers.async_parsers import pytest_asyncio
@@ -125,11 +125,13 @@ def test_bucket_validate_301(monkeypatch: Any) -> None:
         return http_response
 
     # override HttpRequest class with a mock version
-    monkeypatch.setattr("lakedrive.s3.bucket.HttpRequestS3", FakeHttpRequestS3)
+    monkeypatch.setattr(
+        "lakedrive.s3.bucket.HttpRequestS3Bucket", FakeHttpRequestS3Bucket
+    )
 
     # insert (mock) custom response
     monkeypatch.setattr(
-        __name__ + ".FakeHttpRequestS3.custom_response", _custom_response
+        __name__ + ".FakeHttpRequestS3Bucket.custom_response", _custom_response
     )
 
     with pytest.raises(ValueError) as error:

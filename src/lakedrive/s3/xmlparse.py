@@ -63,8 +63,24 @@ class XMLParserBucketList:
         tmp_dict[self.element_name] = tmp_dict.get(self.element_name, "") + data
 
 
-def parse_bucket_list_xml(
-    response: bytes,
+def parse_xml(
+    body: bytes,
+    schema: Dict[str, Union[str, List[Any], Dict[str, Any]]],
+) -> Dict[str, Union[str, List[Dict[str, str]], Dict[str, str]]]:
+
+    xmlParser = XMLParserBucketList(schema)
+    parser = expat.ParserCreate()
+
+    parser.StartElementHandler = xmlParser.start_element
+    parser.EndElementHandler = xmlParser.end_element
+    parser.CharacterDataHandler = xmlParser.char_data
+    parser.Parse(body)
+
+    return xmlParser.results
+
+
+def parse_bucket_objects_xml(
+    body: bytes,
 ) -> Dict[str, Union[str, List[Dict[str, str]], Dict[str, str]]]:
     """Parse the xml response of an AWS bucket_list (v2) call,
     pyexpat documentation: https://docs.python.org/3/library/pyexpat.html"""
@@ -74,12 +90,13 @@ def parse_bucket_list_xml(
         ".ListBucketResult.Contents": [],
         ".ListBucketResult.CommonPrefixes": [],
     }
-    xmlParser = XMLParserBucketList(schema)
-    parser = expat.ParserCreate()
+    return parse_xml(body, schema)
 
-    parser.StartElementHandler = xmlParser.start_element
-    parser.EndElementHandler = xmlParser.end_element
-    parser.CharacterDataHandler = xmlParser.char_data
-    parser.Parse(response)
 
-    return xmlParser.results
+def parse_bucket_buckets_xml(
+    body: bytes,
+) -> Dict[str, Union[str, List[Dict[str, str]], Dict[str, str]]]:
+    schema: Dict[str, Union[str, List[Any], Dict[str, Any]]] = {
+        ".ListAllMyBucketsResult.Buckets.Bucket": [],
+    }
+    return parse_xml(body, schema)

@@ -7,7 +7,13 @@ from typing import List, Dict, AsyncIterator, Union, Optional
 
 from ..httplibs.objects import HttpResponseError
 from ..s3.objects import S3Bucket
-from ..s3.bucket import bucket_create, bucket_delete, bucket_list, aws_misc_to_epoch
+from ..s3.bucket import (
+    aws_misc_to_epoch,
+    bucket_create,
+    bucket_delete,
+    bucket_objects,
+    list_buckets,
+)
 from ..s3.files import (
     file_exists,
     s3_head_file,
@@ -305,10 +311,14 @@ class S3Handler(ObjectStoreHandler):
         raise_on_permission_error: bool = False,
     ) -> List[FileObject]:
         bucket = await self._get_bucket(raise_not_found=False)
-        if not bucket or bucket.exists is False:
+
+        if not bucket:
+            self.object_list = await list_buckets(self._get_aws_credentials())
+            return self.object_list
+        elif bucket.exists is False:
             return []
 
-        self.object_list = await bucket_list(
+        self.object_list = await bucket_objects(
             bucket,
             self.bucket_path,
             prefixes=prefixes,
